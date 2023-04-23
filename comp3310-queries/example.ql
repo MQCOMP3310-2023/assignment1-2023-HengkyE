@@ -7,15 +7,20 @@
 
 
  import java
-
- from LoopStmt loop,  MethodAccess callPrint
+ import semmle.code.java.dataflow.DataFlow
+ 
+ from MethodAccess println, MethodAccess throwableAccess, Method throwableMethod
  where
-     loop.getAChild*() = callPrint.getEnclosingStmt() and  
-       callPrint.getMethod().hasName("println") and
-       callPrint.getMethod().getDeclaringType().hasQualifiedName("java.io", "PrintStream") and
-       not exists(MethodAccess callScan|
-           loop.getAChild*() = callScan.getEnclosingStmt() and 
-           callScan.getMethod().hasName("nextLine") and
-           callScan.getMethod().getDeclaringType().hasQualifiedName("java.util", "Scanner")
-       )
- select callPrint, "This prints in a loop without a scanner."
+   println.getTarget().hasQualifiedName("java.lang.System.out") and
+   println.getTarget().hasName("println") and
+   throwableAccess.getTarget().hasName("getMessage") and
+   throwableAccess.getAnAccessPath().getBase().getType().getASupertype*().(isClass() and hasQualifiedName("java.lang.Throwable")) and
+   throwableMethod = throwableAccess.getTarget().getALocalMethod() and
+   throwableMethod.hasName("getMessage") and
+   throwableAccess.getAnAccessPath().getTarget().getASingleElement() = throwableMethod.getAnExpression() and
+   exists(MethodAccess methodAccess |
+     methodAccess.getAnArgument() = throwableAccess.getAnAccessPath().getBase() and
+     methodAccess.getTarget().hasName("printStackTrace")
+   )
+ select println, "Possible use of System.out.println(e.getMessage()): " + println.toString() + " in " + println.getMethod().getLocation().toString()
+ 
